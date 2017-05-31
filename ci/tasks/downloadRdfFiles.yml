@@ -1,0 +1,9 @@
+platform: linux
+image_resource:
+  type: docker-image
+  source: {repository: ubuntu}
+inputs:
+  - name: mapdata
+run:
+  path: bash
+  args: ["mapdata/ci/scripts/hereMapsDownload.sh"]

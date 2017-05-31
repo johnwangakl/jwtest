@@ -1,0 +1,102 @@
+resource_types:
+
+- name: aws-cloudformation-stack
+  type: docker-image
+  source:
+    repository: eroadltd/aws-cloudformation-stack-resource
+    tag: latest
+
+resources:
+
+- name: mapdata
+  type: git
+  check_every: 10s
+  source:
+    uri: https://github.com/eroad/mapdata.git
+    branch: master
+    username: {{github-username}}
+    password: {{github-password}}
+
+- name: cloudformation
+  type: git
+  check_every: 10s
+  source:
+    uri: https://github.com/eroad/mapdata.git
+    branch: master
+    username: {{github-username}}
+    password: {{github-password}}
+    paths: ['build/cloudformation/*']
+
+- name: pipeline-task
+  type: git
+  source:
+    uri: https://github.com/eroad/pipeline-task.git
+    branch: master
+    username: {{github-username}}
+    password: {{github-password}}
+
+- name: version
+  type: semver
+  source:
+    initial_version: 1.0.0
+    key: mapdata/version/map-data-version
+    bucket: eroad-artifact-ap-southeast-2
+    access_key_id: {{aws-access-key}}
+    secret_access_key: {{aws-secret-key}}
+    region_name: ap-southeast-2
+
+- name: map-data-stack
+  type: aws-cloudformation-stack
+  source:
+    name: global-map-data
+    region: ap-southeast-2
+    
+- name: map-load
+  type: s3
+  source:
+    bucket: eroad-artifact-ap-southeast-2
+    access_key_id: {{aws-access-key}}
+    secret_access_key: {{aws-secret-key}}
+    region_name: ap-southeast-2
+    private: true
+    regexp: mapload/*
+
+
+jobs:
+
+- name: dev
+  serial: true
+  plan:
+  - aggregate:
+    - get: mapdata
+    - get: cloudformation
+      trigger: true
+    - get: version
+    - get: pipeline-task
+  - task: create-tags
+    file: pipeline-task/cloudformation-utils/tasks/create-tags-json.yml
+    params:
+      ENVIRONMENT: dev
+      ROLE: map-data
+  - put: map-data-stack
+    params:
+      template: cloudformation/build/cloudformation/cloudformation.json
+      tags: tags/tags.json
+      capabilities: [CAPABILITY_IAM]
+
+- name: run-tools
+  serial: true
+  plan:
+  - aggregate:
+    - get: mapdata
+  - task: download-rdf
+    params:
+      HERE_USERNAME: {{here-maps-username}}
+      HERE_PASSWORD: {{here-maps-password}}
+    file: mapdata/ci/tasks/downloadRdfFiles.yml
+  - put: map-load
+    params:
+      file: downloaded/*
+    
+    
+    
