@@ -2,7 +2,6 @@ package com.jwang.jwtest;
 
 /**
  * Hello world!
- *
  */
 public class App 
 {
